@@ -1,5 +1,45 @@
 use dc34_api::*;
 
+/// Standalone ring patterns, selected by `LedManagerOp::SetPattern`.
+///
+/// These are ordinary phenotypes fed through `force()`, so they reuse the existing renderer
+/// rather than adding a second lighting path. Index 0 is not a pattern: it restores gene
+/// expression, which stays the default and is the badge's protected behaviour.
+///
+/// Field meanings, from `Haploid`: cd_* drive the brightness cycle (period is 0..=6, larger
+/// is slower), sat is saturation, hue_base/hue_bound bound the colour range and must satisfy
+/// bound >= base, hue_ratedir sets hue drift speed and direction, chaser sets the rotating
+/// offset around the ring, and nonlin shapes the brightness curve.
+const PATTERNS: [(&str, Haploid); 5] = [
+    // A slow full-spectrum drift - calm, uses the whole ring evenly.
+    ("rainbow", Haploid {
+        cd_period: 5, cd_rate: 24, cd_dir: 1, sat: 255,
+        hue_ratedir: 36, hue_base: 0, hue_bound: 255, chaser: 24, nonlin: 96,
+    }),
+    // A single bright point chasing quickly around the ring.
+    ("chase", Haploid {
+        cd_period: 1, cd_rate: 200, cd_dir: 1, sat: 255,
+        hue_ratedir: 8, hue_base: 150, hue_bound: 170, chaser: 220, nonlin: 220,
+    }),
+    // Slow symmetric breathing in a narrow cyan band.
+    ("breathe", Haploid {
+        cd_period: 6, cd_rate: 12, cd_dir: 0, sat: 220,
+        hue_ratedir: 0, hue_base: 120, hue_bound: 135, chaser: 0, nonlin: 64,
+    }),
+    // Warm amber ember, low saturation drift, barely moving.
+    ("ember", Haploid {
+        cd_period: 4, cd_rate: 40, cd_dir: 0, sat: 180,
+        hue_ratedir: 4, hue_base: 10, hue_bound: 40, chaser: 8, nonlin: 160,
+    }),
+    // Fast, high-contrast, full-spectrum - deliberately loud.
+    ("riot", Haploid {
+        cd_period: 0, cd_rate: 255, cd_dir: 1, sat: 255,
+        hue_ratedir: 255, hue_base: 0, hue_bound: 255, chaser: 255, nonlin: 255,
+    }),
+];
+
+pub const PATTERN_COUNT: usize = PATTERNS.len();
+
 pub fn start_leds() {
     std::thread::spawn(move || {
         leds();
@@ -92,6 +132,21 @@ fn leds() {
             LedManagerOp::JackEyes => {
                 if let Some(scalar) = msg_opt.as_ref().unwrap().body.scalar_message() {
                     lightgenes.jack_eyes(scalar.arg1 != 0);
+                }
+            }
+            LedManagerOp::SetPattern => {
+                if let Some(scalar) = msg_opt.as_mut().unwrap().body.scalar_message_mut() {
+                    let sel = scalar.arg1;
+                    if sel == 0 {
+                        // restore gene expression - the default, and the protected behaviour
+                        lightgenes.express();
+                        log::info!("LED pattern cleared, gene expression restored");
+                    } else if let Some((name, phenotype)) = PATTERNS.get(sel - 1) {
+                        lightgenes.force(*phenotype);
+                        log::info!("LED pattern {} ({}) selected", sel, name);
+                    } else {
+                        log::warn!("LED pattern {} out of range, ignoring", sel);
+                    }
                 }
             }
             LedManagerOp::Pause => {
