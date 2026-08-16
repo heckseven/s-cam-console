@@ -147,16 +147,33 @@ impl Lightgenes {
     */
 
     /// Forces a given gene to be expressed. Does not affect the light gene state.
+    ///
+    /// Goes through the same send path as `express()`. It used to write bare codons - without
+    /// the 0x4000_0000 flag every codon carries, and without the zero writes that bracket a
+    /// sequence - so the render engine ignored them and the ring carried on showing whatever
+    /// gene expression had last set. That looked exactly like a pattern setting that did
+    /// nothing.
     pub fn force(&mut self, phenotype: Haploid) {
         log::info!("forcing {:?}", phenotype);
+        self.send_phenotype(phenotype);
+    }
+
+    /// Write one phenotype to the light rendering engine.
+    fn send_phenotype(&mut self, phenotype: Haploid) {
+        // paranoia, clear any previous state
+        self.tx.csr.wo(utralib::utra::bio_bdma::SFR_TXF1, 0x0000_0000);
         let mrnas = phenotype.serialize();
         for (index, mrna) in mrnas.iter().enumerate() {
-            let codon = (index as u32) << 8 | *mrna as u32;
-            self.tx.csr.wo(utralib::utra::bio_bdma::SFR_TXF1, codon);
+            let codon = (index as u32) << 8 | *mrna as u32 | 0x4000_0000;
             while self.tx.csr.rf(utralib::utra::bio_bdma::SFR_FLEVEL_PCLK_REGFIFO_LEVEL1) > 7 {
                 // don't overflow the fifo
             }
+            self.tx.csr.wo(utralib::utra::bio_bdma::SFR_TXF1, codon);
         }
+        while self.tx.csr.rf(utralib::utra::bio_bdma::SFR_FLEVEL_PCLK_REGFIFO_LEVEL1) > 7 {
+            // don't overflow the fifo
+        }
+        self.tx.csr.wo(utralib::utra::bio_bdma::SFR_TXF1, 0x0000_0000);
     }
 
     /// Express the current phenotype by sending it to the light rendering engine
@@ -167,21 +184,9 @@ impl Lightgenes {
                 log::warn!("errant Rx in express");
                 self.rx.csr.r(utralib::utra::bio_bdma::SFR_TXF2);
             }
-            self.tx.csr.wo(utralib::utra::bio_bdma::SFR_TXF1, 0x0000_0000); // paranoia, clear any previous state
             let phenotype = gene.phenotype();
             log::info!("phenotype: {:?}", phenotype);
-            let mrnas = phenotype.serialize();
-            for (index, mrna) in mrnas.iter().enumerate() {
-                let codon = (index as u32) << 8 | *mrna as u32 | 0x4000_0000;
-                while self.tx.csr.rf(utralib::utra::bio_bdma::SFR_FLEVEL_PCLK_REGFIFO_LEVEL1) > 7 {
-                    // don't overflow the fifo
-                }
-                self.tx.csr.wo(utralib::utra::bio_bdma::SFR_TXF1, codon);
-            }
-            while self.tx.csr.rf(utralib::utra::bio_bdma::SFR_FLEVEL_PCLK_REGFIFO_LEVEL1) > 7 {
-                // don't overflow the fifo
-            }
-            self.tx.csr.wo(utralib::utra::bio_bdma::SFR_TXF1, 0x0000_0000);
+            self.send_phenotype(phenotype);
         } else {
             // do nothing, we haven't been initialized
         }
