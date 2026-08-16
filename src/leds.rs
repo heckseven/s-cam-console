@@ -6,35 +6,58 @@ use dc34_api::*;
 /// existing renderer rather than adding a second lighting path. Index 0 is not a pattern: it restores gene
 /// expression, which stays the default and is the badge's protected behaviour.
 ///
-/// Field meanings, from `Haploid`: cd_* drive the brightness cycle (period is 0..=6, larger
-/// is slower), sat is saturation, hue_base/hue_bound bound the colour range and must satisfy
-/// bound >= base, hue_ratedir sets hue drift speed and direction, chaser sets the rotating
-/// offset around the ring, and nonlin shapes the brightness curve.
-const PATTERNS: [(&str, Haploid); 5] = [
-    // A slow full-spectrum drift - calm, uses the whole ring evenly.
+/// Field meanings, read from the render program (src/bio/lightgenes/main.c), which does not
+/// use the Rust field names: `chaser` lands on the C struct's `lin` by byte order.
+///
+///   cd_period  brightness cycles around the ring; 0 is uniform, higher is more banding
+///   cd_rate    0 is FAST and 255 is SLOW - it maps to a cycle length of 0.6s..7s
+///   cd_dir     above 128 travels one way, below the other
+///   sat        saturation
+///   hue_ratedir  low nibble is hue drift rate 0..15; a high nibble above 10 reverses it
+///   hue_base/hue_bound  the hue range the ring spans
+///   chaser     BELOW 88 overlays a white dot running round the ring; at or above, none
+///   nonlin     above 127 squares the brightness curve: dimmer, more contrast
+const PATTERNS: [(&str, Haploid); 8] = [
+    // Smooth full-spectrum ring: no brightness banding, no white dot, slow hue drift.
     ("rainbow", Haploid {
-        cd_period: 5, cd_rate: 24, cd_dir: 1, sat: 255,
-        hue_ratedir: 36, hue_base: 0, hue_bound: 255, chaser: 24, nonlin: 96,
+        cd_period: 0, cd_rate: 200, cd_dir: 200, sat: 255,
+        hue_ratedir: 3, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 100,
     }),
-    // A single bright point chasing quickly around the ring.
+    // Same ring, hue moving noticeably faster.
+    ("rainbow spin", Haploid {
+        cd_period: 0, cd_rate: 160, cd_dir: 200, sat: 255,
+        hue_ratedir: 8, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 100,
+    }),
+    // Full spectrum with a single brightness wave travelling under it.
+    ("rainbow wave", Haploid {
+        cd_period: 1, cd_rate: 90, cd_dir: 200, sat: 255,
+        hue_ratedir: 4, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 110,
+    }),
+    // The white travelling dot, used deliberately here rather than by accident.
+    ("comet", Haploid {
+        cd_period: 1, cd_rate: 120, cd_dir: 200, sat: 255,
+        hue_ratedir: 2, hue_base: 140, hue_bound: 200, chaser: 40, nonlin: 120,
+    }),
+    // One bright point running round the ring, quicker than before and linear so the
+    // gradient between neighbouring LEDs stays smooth.
     ("chase", Haploid {
-        cd_period: 1, cd_rate: 200, cd_dir: 1, sat: 255,
-        hue_ratedir: 8, hue_base: 150, hue_bound: 170, chaser: 220, nonlin: 220,
+        cd_period: 1, cd_rate: 40, cd_dir: 200, sat: 255,
+        hue_ratedir: 2, hue_base: 150, hue_bound: 190, chaser: 200, nonlin: 100,
     }),
-    // Slow symmetric breathing in a narrow cyan band.
+    // Whole ring fading up and down together in a narrow cyan band.
     ("breathe", Haploid {
-        cd_period: 6, cd_rate: 12, cd_dir: 0, sat: 220,
-        hue_ratedir: 0, hue_base: 120, hue_bound: 135, chaser: 0, nonlin: 64,
+        cd_period: 0, cd_rate: 240, cd_dir: 0, sat: 220,
+        hue_ratedir: 1, hue_base: 120, hue_bound: 140, chaser: 200, nonlin: 90,
     }),
-    // Warm amber ember, low saturation drift, barely moving.
+    // Warm amber, barely moving.
     ("ember", Haploid {
-        cd_period: 4, cd_rate: 40, cd_dir: 0, sat: 180,
-        hue_ratedir: 4, hue_base: 10, hue_bound: 40, chaser: 8, nonlin: 160,
+        cd_period: 0, cd_rate: 250, cd_dir: 0, sat: 200,
+        hue_ratedir: 1, hue_base: 5, hue_bound: 35, chaser: 200, nonlin: 150,
     }),
-    // Fast, high-contrast, full-spectrum - deliberately loud.
+    // Deliberately loud: two brightness bands, fast hue, full spectrum.
     ("riot", Haploid {
-        cd_period: 0, cd_rate: 255, cd_dir: 1, sat: 255,
-        hue_ratedir: 255, hue_base: 0, hue_bound: 255, chaser: 255, nonlin: 255,
+        cd_period: 2, cd_rate: 70, cd_dir: 200, sat: 255,
+        hue_ratedir: 10, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 110,
     }),
 ];
 
@@ -52,6 +75,10 @@ fn as_gene(p: Haploid) -> Diploid {
     // hue_ratedir is (2 + (14 - min(a+b,14))) % 14; solve for the sum that yields p's value
     let want = p.hue_ratedir % 14;
     let sum = if want >= 2 { 16 - want } else { 16 - (want + 14) };
+    // phenotype computes chaser as a.chaser + b.chaser, but nonlin as a.chaser + b.nonlin -
+    // the same term feeds both, so they have to be solved together or setting one wrecks the
+    // other.
+    let a_chaser = p.chaser.min(p.nonlin);
     let a = Haploid {
         cd_period: p.cd_period,
         cd_rate: p.cd_rate,
@@ -60,9 +87,7 @@ fn as_gene(p: Haploid) -> Diploid {
         hue_ratedir: sum.min(14),
         hue_base: p.hue_base,
         hue_bound: p.hue_bound,
-        chaser: p.chaser,
-        // phenotype reads chaser from the FIRST strand for nonlin, so this strand's chaser
-        // is what lands there; the second strand carries the remainder
+        chaser: a_chaser,
         nonlin: 0,
     };
     let b = Haploid {
@@ -73,8 +98,8 @@ fn as_gene(p: Haploid) -> Diploid {
         hue_ratedir: 0,
         hue_base: p.hue_base,
         hue_bound: p.hue_bound,
-        chaser: 0,
-        nonlin: p.nonlin.saturating_sub(p.chaser),
+        chaser: p.chaser - a_chaser,
+        nonlin: p.nonlin - a_chaser,
     };
     Diploid([a, b])
 }
