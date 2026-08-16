@@ -40,8 +40,8 @@ const PATTERNS: [(&str, Haploid); 9] = [
     // dips to black together once per cycle, which is the fade that was showing up here.
     // Bands put each LED at a different phase, so the dark part travels instead.
     ("rainbow spin", Haploid {
-        cd_period: 4, cd_rate: 60, cd_dir: 200, sat: 255,
-        hue_ratedir: 8, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 90,
+        cd_period: 0, cd_rate: 150, cd_dir: 200, sat: 255,
+        hue_ratedir: 12, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 90,
     }),
     // One brightness wave under the spectrum, twice the speed it was (cd_rate is inverted:
     // lower is faster).
@@ -52,7 +52,7 @@ const PATTERNS: [(&str, Haploid); 9] = [
     // The white travelling dot. nonlin above 127 squares the brightness curve, which steepens
     // the falloff behind the dot and shortens the tail.
     ("comet", Haploid {
-        cd_period: 0, cd_rate: 200, cd_dir: 200, sat: 255,
+        cd_period: 4, cd_rate: 100, cd_dir: 200, sat: 255,
         hue_ratedir: 2, hue_base: 140, hue_bound: 200, chaser: 40, nonlin: 100,
     }),
     // One bright point running round the ring.
@@ -69,15 +69,15 @@ const PATTERNS: [(&str, Haploid); 9] = [
     // Warm amber. Given bands so the ring no longer dips to black all at once, and left
     // linear so it holds mid brightness rather than spending the cycle near zero.
     ("ember", Haploid {
-        cd_period: 3, cd_rate: 150, cd_dir: 0, sat: 200,
+        cd_period: 3, cd_rate: 0, cd_dir: 0, sat: 200,
         hue_ratedir: 1, hue_base: 5, hue_bound: 35, chaser: 200, nonlin: 90,
     }),
     // Light pink shimmer. A high cd_period puts neighbouring LEDs at nearly opposite phase,
     // so they twinkle against each other and the ring is never dark; the low saturation is
     // what makes the pink pale rather than hot.
     ("bird", Haploid {
-        cd_period: 5, cd_rate: 60, cd_dir: 200, sat: 170,
-        hue_ratedir: 1, hue_base: 220, hue_bound: 240, chaser: 200, nonlin: 90,
+        cd_period: 5, cd_rate: 60, cd_dir: 200, sat: 225,
+        hue_ratedir: 1, hue_base: 218, hue_bound: 236, chaser: 200, nonlin: 90,
     }),
     // Deliberately loud.
     ("riot", Haploid {
