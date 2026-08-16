@@ -17,44 +17,56 @@ use dc34_api::*;
 ///   hue_base/hue_bound  the hue range the ring spans
 ///   chaser     BELOW 88 overlays a white dot running round the ring; at or above, none
 ///   nonlin     above 127 squares the brightness curve: dimmer, more contrast
-const PATTERNS: [(&str, Haploid); 8] = [
-    // Smooth full-spectrum ring: no brightness banding, no white dot, slow hue drift.
+const PATTERNS: [(&str, Haploid); 9] = [
+    // Smooth full-spectrum ring, slow hue drift, no white dot.
     ("rainbow", Haploid {
         cd_period: 0, cd_rate: 200, cd_dir: 200, sat: 255,
         hue_ratedir: 3, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 100,
     }),
-    // Same ring, hue moving noticeably faster.
+    // Faster hue, and two brightness bands instead of none: with cd_period 0 the whole ring
+    // dips to black together once per cycle, which is the fade that was showing up here.
+    // Bands put each LED at a different phase, so the dark part travels instead.
     ("rainbow spin", Haploid {
-        cd_period: 0, cd_rate: 160, cd_dir: 200, sat: 255,
+        cd_period: 2, cd_rate: 140, cd_dir: 200, sat: 255,
         hue_ratedir: 8, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 100,
     }),
-    // Full spectrum with a single brightness wave travelling under it.
+    // One brightness wave under the spectrum, twice the speed it was (cd_rate is inverted:
+    // lower is faster).
     ("rainbow wave", Haploid {
-        cd_period: 1, cd_rate: 90, cd_dir: 200, sat: 255,
+        cd_period: 1, cd_rate: 45, cd_dir: 200, sat: 255,
         hue_ratedir: 4, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 110,
     }),
-    // The white travelling dot, used deliberately here rather than by accident.
+    // The white travelling dot. nonlin above 127 squares the brightness curve, which steepens
+    // the falloff behind the dot and shortens the tail.
     ("comet", Haploid {
         cd_period: 1, cd_rate: 120, cd_dir: 200, sat: 255,
-        hue_ratedir: 2, hue_base: 140, hue_bound: 200, chaser: 40, nonlin: 120,
+        hue_ratedir: 2, hue_base: 140, hue_bound: 200, chaser: 40, nonlin: 210,
     }),
-    // One bright point running round the ring, quicker than before and linear so the
-    // gradient between neighbouring LEDs stays smooth.
+    // One bright point running round the ring.
     ("chase", Haploid {
         cd_period: 1, cd_rate: 40, cd_dir: 200, sat: 255,
         hue_ratedir: 2, hue_base: 150, hue_bound: 190, chaser: 200, nonlin: 100,
     }),
-    // Whole ring fading up and down together in a narrow cyan band.
+    // Whole ring fading up and down together in a narrow cyan band. The uniform pulse is the
+    // point of this one, so cd_period stays 0.
     ("breathe", Haploid {
         cd_period: 0, cd_rate: 240, cd_dir: 0, sat: 220,
         hue_ratedir: 1, hue_base: 120, hue_bound: 140, chaser: 200, nonlin: 90,
     }),
-    // Warm amber, barely moving.
+    // Warm amber. Given bands so the ring no longer dips to black all at once, and left
+    // linear so it holds mid brightness rather than spending the cycle near zero.
     ("ember", Haploid {
-        cd_period: 0, cd_rate: 250, cd_dir: 0, sat: 200,
-        hue_ratedir: 1, hue_base: 5, hue_bound: 35, chaser: 200, nonlin: 150,
+        cd_period: 2, cd_rate: 250, cd_dir: 0, sat: 200,
+        hue_ratedir: 1, hue_base: 5, hue_bound: 35, chaser: 200, nonlin: 100,
     }),
-    // Deliberately loud: two brightness bands, fast hue, full spectrum.
+    // Light pink shimmer. A high cd_period puts neighbouring LEDs at nearly opposite phase,
+    // so they twinkle against each other and the ring is never dark; the low saturation is
+    // what makes the pink pale rather than hot.
+    ("bird", Haploid {
+        cd_period: 5, cd_rate: 130, cd_dir: 200, sat: 110,
+        hue_ratedir: 1, hue_base: 225, hue_bound: 245, chaser: 200, nonlin: 90,
+    }),
+    // Deliberately loud.
     ("riot", Haploid {
         cd_period: 2, cd_rate: 70, cd_dir: 200, sat: 255,
         hue_ratedir: 10, hue_base: 0, hue_bound: 255, chaser: 200, nonlin: 110,
