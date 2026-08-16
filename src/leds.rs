@@ -40,6 +40,45 @@ const PATTERNS: [(&str, Haploid); 5] = [
 
 pub const PATTERN_COUNT: usize = PATTERNS.len();
 
+/// Build a Diploid whose `phenotype()` comes out as `p`.
+///
+/// `phenotype()` blends two strands with dominance rules, so `Diploid([p, p])` does NOT
+/// express as `p`: saturating adds pin sat and chaser to 255, and the hue_ratedir rule
+/// collapses most inputs to the same value - which made four of the five patterns express
+/// almost identically. Each field is inverted here so the pattern that was written is the
+/// pattern that renders.
+fn as_gene(p: Haploid) -> Diploid {
+    let half = p.sat / 2;
+    // hue_ratedir is (2 + (14 - min(a+b,14))) % 14; solve for the sum that yields p's value
+    let want = p.hue_ratedir % 14;
+    let sum = if want >= 2 { 16 - want } else { 16 - (want + 14) };
+    let a = Haploid {
+        cd_period: p.cd_period,
+        cd_rate: p.cd_rate,
+        cd_dir: p.cd_dir,
+        sat: half,
+        hue_ratedir: sum.min(14),
+        hue_base: p.hue_base,
+        hue_bound: p.hue_bound,
+        chaser: p.chaser,
+        // phenotype reads chaser from the FIRST strand for nonlin, so this strand's chaser
+        // is what lands there; the second strand carries the remainder
+        nonlin: 0,
+    };
+    let b = Haploid {
+        cd_period: p.cd_period,
+        cd_rate: p.cd_rate,
+        cd_dir: 0,
+        sat: p.sat - half,
+        hue_ratedir: 0,
+        hue_base: p.hue_base,
+        hue_bound: p.hue_bound,
+        chaser: 0,
+        nonlin: p.nonlin.saturating_sub(p.chaser),
+    };
+    Diploid([a, b])
+}
+
 pub fn start_leds() {
     std::thread::spawn(move || {
         leds();
@@ -144,22 +183,31 @@ fn leds() {
                     // does. force() writes straight to the engine and left the ring showing
                     // whatever gene expression had already set; express() is the path that
                     // demonstrably drives the ring, so patterns use it too.
+                    let status;
                     if sel == 0 {
                         if let Some(gene) = saved_gene.take() {
                             lightgenes.gene = Some(gene);
                         }
                         lightgenes.express();
                         log::info!("LED pattern cleared, gene expression restored");
+                        status = if lightgenes.gene.is_some() { 1 } else { 2 };
                     } else if let Some((name, phenotype)) = PATTERNS.get(sel - 1) {
                         if saved_gene.is_none() {
                             saved_gene = lightgenes.gene.clone();
                         }
-                        lightgenes.gene = Some(Diploid([*phenotype, *phenotype]));
+                        lightgenes.gene = Some(as_gene(*phenotype));
                         lightgenes.express();
                         log::info!("LED pattern {} ({}) selected", sel, name);
+                        status = 3;
                     } else {
                         log::warn!("LED pattern {} out of range, ignoring", sel);
+                        status = 4;
                     }
+                    // Report back. The loop replies with this envelope, so a blocking caller
+                    // reads it: that distinguishes "the LED server never got this" from "it
+                    // handled it and the ring still did not change", which is the difference
+                    // between a wiring fault and a rendering one.
+                    scalar.arg1 = status;
                 }
             }
             LedManagerOp::Pause => {
