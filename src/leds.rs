@@ -177,20 +177,24 @@ fn leds() {
                 }
             }
             LedManagerOp::SetPattern => {
-                if let Some(scalar) = msg_opt.as_mut().unwrap().body.scalar_message_mut() {
+                // scalar_message(), not scalar_message_mut(): the mutable accessor returns
+                // None for a plain Scalar and only matches BlockingScalar, so with the
+                // fire-and-forget send this server is built around, the body below never ran
+                // at all. That is why picking a pattern did nothing, through every earlier
+                // attempt at fixing it. JackEyes above uses the same accessor for the same
+                // reason.
+                if let Some(scalar) = msg_opt.as_ref().unwrap().body.scalar_message() {
                     let sel = scalar.arg1;
                     // Install the pattern AS the gene and express it, exactly the way GeneTest
                     // does. force() writes straight to the engine and left the ring showing
                     // whatever gene expression had already set; express() is the path that
                     // demonstrably drives the ring, so patterns use it too.
-                    let status;
                     if sel == 0 {
                         if let Some(gene) = saved_gene.take() {
                             lightgenes.gene = Some(gene);
                         }
                         lightgenes.express();
                         log::info!("LED pattern cleared, gene expression restored");
-                        status = if lightgenes.gene.is_some() { 1 } else { 2 };
                     } else if let Some((name, phenotype)) = PATTERNS.get(sel - 1) {
                         if saved_gene.is_none() {
                             saved_gene = lightgenes.gene.clone();
@@ -198,12 +202,9 @@ fn leds() {
                         lightgenes.gene = Some(as_gene(*phenotype));
                         lightgenes.express();
                         log::info!("LED pattern {} ({}) selected", sel, name);
-                        status = 3;
                     } else {
                         log::warn!("LED pattern {} out of range, ignoring", sel);
-                        status = 4;
                     }
-                    let _ = status;
                 }
             }
             LedManagerOp::Pause => {
