@@ -203,11 +203,7 @@ fn leds() {
                         log::warn!("LED pattern {} out of range, ignoring", sel);
                         status = 4;
                     }
-                    // Report back. The loop replies with this envelope, so a blocking caller
-                    // reads it: that distinguishes "the LED server never got this" from "it
-                    // handled it and the ring still did not change", which is the difference
-                    // between a wiring fault and a rendering one.
-                    scalar.arg1 = status;
+                    let _ = status;
                 }
             }
             LedManagerOp::Pause => {
