@@ -2,8 +2,8 @@ use dc34_api::*;
 
 /// Standalone ring patterns, selected by `LedManagerOp::SetPattern`.
 ///
-/// These are ordinary phenotypes fed through `force()`, so they reuse the existing renderer
-/// rather than adding a second lighting path. Index 0 is not a pattern: it restores gene
+/// These are ordinary phenotypes installed as the gene and expressed, so they reuse the
+/// existing renderer rather than adding a second lighting path. Index 0 is not a pattern: it restores gene
 /// expression, which stays the default and is the badge's protected behaviour.
 ///
 /// Field meanings, from `Haploid`: cd_* drive the brightness cycle (period is 0..=6, larger
@@ -60,6 +60,9 @@ fn leds() {
         crate::bio::lightgenes::Lightgenes::new(arbitrary_int::u5::new(15), LED_COUNT, None).unwrap();
 
     let mut rate_param: u8 = 1;
+    // The badge's own gene, put aside while a standalone pattern is showing so that
+    // selecting "gene (default)" puts back exactly what was there before.
+    let mut saved_gene: Option<Diploid> = None;
     let mut msg_opt = None;
     loop {
         xous::reply_and_receive_next(sid, &mut msg_opt).unwrap();
@@ -137,12 +140,22 @@ fn leds() {
             LedManagerOp::SetPattern => {
                 if let Some(scalar) = msg_opt.as_mut().unwrap().body.scalar_message_mut() {
                     let sel = scalar.arg1;
+                    // Install the pattern AS the gene and express it, exactly the way GeneTest
+                    // does. force() writes straight to the engine and left the ring showing
+                    // whatever gene expression had already set; express() is the path that
+                    // demonstrably drives the ring, so patterns use it too.
                     if sel == 0 {
-                        // restore gene expression - the default, and the protected behaviour
+                        if let Some(gene) = saved_gene.take() {
+                            lightgenes.gene = Some(gene);
+                        }
                         lightgenes.express();
                         log::info!("LED pattern cleared, gene expression restored");
                     } else if let Some((name, phenotype)) = PATTERNS.get(sel - 1) {
-                        lightgenes.force(*phenotype);
+                        if saved_gene.is_none() {
+                            saved_gene = lightgenes.gene.clone();
+                        }
+                        lightgenes.gene = Some(Diploid([*phenotype, *phenotype]));
+                        lightgenes.express();
                         log::info!("LED pattern {} ({}) selected", sel, name);
                     } else {
                         log::warn!("LED pattern {} out of range, ignoring", sel);
