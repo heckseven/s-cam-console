@@ -82,6 +82,8 @@ mod image;
 use image::*;
 mod bio;
 use bio::*;
+mod photo;
+use photo::*;
 
 pub struct CmdEnv {
     common_env: CommonEnv,
@@ -90,6 +92,7 @@ pub struct CmdEnv {
     image: Image,
     test: Test,
     bio: BioLoader,
+    photo: Photo,
 }
 impl CmdEnv {
     pub fn new(xns: &xous_names::XousNames) -> CmdEnv {
@@ -109,6 +112,7 @@ impl CmdEnv {
             image: Image::new(),
             test: Test::new(),
             bio: BioLoader::new(),
+            photo: Photo::new(),
         }
     }
 
@@ -129,6 +133,7 @@ impl CmdEnv {
             &mut self.test,
             &mut self.image,
             &mut self.bio,
+            &mut self.photo,
         ];
 
         if let Some(cmdline) = maybe_cmdline {
