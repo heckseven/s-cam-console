@@ -568,6 +568,7 @@ dependencies = [
  "xous-api-names",
  "xous-api-susres",
  "xous-api-ticktimer",
+ "xous-ipc",
  "xous-swapper 0.1.0 (git+https://github.com/betrusted-io/xous-core?rev=616bf65f6e379165464f50b1e79ec42aff77a683)",
  "xous-usb-hid",
 ]
