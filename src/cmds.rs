@@ -83,6 +83,10 @@ impl CommonEnv {
 // diagnostics.
 mod photo;
 use photo::*;
+mod qr;
+use qr::*;
+mod debug;
+use debug::*;
 mod bio;
 use bio::*;
 mod test;
@@ -93,6 +97,8 @@ pub struct CmdEnv {
     lastverb: String,
     ///// 2. declare storage for your command here.
     photo: Photo,
+    qr: Qr,
+    debug: Debug,
     bio: BioLoader,
     test: Test,
 }
@@ -112,6 +118,8 @@ impl CmdEnv {
             lastverb: String::new(),
             ///// 3. initialize your storage, by calling new()
             photo: Photo::new(),
+            qr: Qr::new(),
+            debug: Debug::new(),
             bio: BioLoader::new(),
             test: Test::new(),
         }
@@ -128,6 +136,8 @@ impl CmdEnv {
             ///// 4. add your command to this array, so that it can be looked up and dispatched
             // Everyday commands first, diagnostics last - this order is what help prints.
             &mut self.photo,
+            &mut self.qr,
+            &mut self.debug,
             &mut self.bio,
             &mut self.test,
         ];
