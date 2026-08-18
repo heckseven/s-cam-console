@@ -25,6 +25,13 @@ pub trait ShellCmdApi<'a> {
     fn matches(&self, verb: &str) -> bool;
     // returns my verb
     fn verb(&self) -> &'static str;
+
+    /// One line for the help listing. Defaults to nothing so a command without one still
+    /// compiles - it just appears bare in the list, which is the nudge to write one.
+    fn help(&self) -> &'static str { "" }
+
+    /// Longer usage, shown under the summary. Empty means the summary says it all.
+    fn usage(&self) -> &'static str { "" }
 }
 // the argument to this macro is the command verb
 macro_rules! cmd_api {
@@ -72,27 +79,22 @@ impl CommonEnv {
 */
 
 ///// 1. add your module here, and pull its namespace into the local crate
-mod echo;
-use echo::*;
-mod ver;
-use ver::*;
-mod test;
-use test::*;
-mod image;
-use image::*;
-mod bio;
-use bio::*;
+// Order here is the order they appear in help: the ones you reach for first, then the
+// diagnostics.
 mod photo;
 use photo::*;
+mod bio;
+use bio::*;
+mod test;
+use test::*;
 
 pub struct CmdEnv {
     common_env: CommonEnv,
     lastverb: String,
     ///// 2. declare storage for your command here.
-    image: Image,
-    test: Test,
-    bio: BioLoader,
     photo: Photo,
+    bio: BioLoader,
+    test: Test,
 }
 impl CmdEnv {
     pub fn new(xns: &xous_names::XousNames) -> CmdEnv {
@@ -109,10 +111,9 @@ impl CmdEnv {
             common_env: _common,
             lastverb: String::new(),
             ///// 3. initialize your storage, by calling new()
-            image: Image::new(),
-            test: Test::new(),
-            bio: BioLoader::new(),
             photo: Photo::new(),
+            bio: BioLoader::new(),
+            test: Test::new(),
         }
     }
 
@@ -123,17 +124,12 @@ impl CmdEnv {
     ) -> Result<Option<String>, xous::Error> {
         let mut ret = String::new();
 
-        let mut echo_cmd = Echo {}; // this command has no persistent storage, so we can "create" it every time we call dispatch (but it's a zero-cost absraction so this doesn't actually create any instructions)
-        let mut ver_cmd = Ver {};
-
         let commands: &mut [&mut dyn ShellCmdApi] = &mut [
             ///// 4. add your command to this array, so that it can be looked up and dispatched
-            &mut echo_cmd,
-            &mut ver_cmd,
-            &mut self.test,
-            &mut self.image,
-            &mut self.bio,
+            // Everyday commands first, diagnostics last - this order is what help prints.
             &mut self.photo,
+            &mut self.bio,
+            &mut self.test,
         ];
 
         if let Some(cmdline) = maybe_cmdline {
@@ -142,6 +138,28 @@ impl CmdEnv {
             let mut cmd_ret: Result<Option<String>, xous::Error> = Ok(None);
             if let Some(verb_string) = maybe_verb {
                 let verb = &verb_string;
+
+                // Help is rendered from this same array, so a new command documents itself
+                // by existing. Keeping a separate list here would be one more thing to
+                // forget.
+                if verb == "help" || verb == "h" {
+                    crate::banner::print_banner();
+                    writeln!(ret, "Commands:").unwrap();
+                    let width = commands.iter().map(|c| c.verb().len()).max().unwrap_or(8);
+                    for cmd in commands.iter() {
+                        writeln!(ret, "  {:width$}  {}", cmd.verb(), cmd.help(), width = width)
+                            .unwrap();
+                    }
+                    writeln!(ret, "").unwrap();
+                    for cmd in commands.iter() {
+                        if !cmd.usage().is_empty() {
+                            writeln!(ret, "{}:", cmd.verb()).unwrap();
+                            writeln!(ret, "    {}", cmd.usage()).unwrap();
+                        }
+                    }
+                    write!(ret, "help, h                 this listing").unwrap();
+                    return Ok(Some(ret));
+                }
 
                 // search through the list of commands linearly until one matches,
                 // then run it.

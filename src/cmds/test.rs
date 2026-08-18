@@ -26,6 +26,8 @@ impl Test {
 impl<'a> ShellCmdApi<'a> for Test {
     cmd_api!(test);
 
+    fn help(&self) -> &'static str { "hardware self-tests" }
+
     // inserts boilerplate for command API
 
     fn process(&mut self, args: String, _env: &mut CommonEnv) -> Result<Option<String>, xous::Error> {

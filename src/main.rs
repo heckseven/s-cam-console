@@ -2,6 +2,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+mod banner;
 mod bio;
 mod cmds;
 mod repl;

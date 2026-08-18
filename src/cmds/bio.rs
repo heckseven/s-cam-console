@@ -384,6 +384,8 @@ fn clear_key(pddb: &Pddb, name: &str, len: usize) {
 impl<'a> ShellCmdApi<'a> for BioLoader {
     cmd_api!(bio);
 
+    fn help(&self) -> &'static str { "load and control the BIO co-processor" }
+
     fn process(&mut self, args: String, _env: &mut CommonEnv) -> Result<Option<String>, xous::Error> {
         let mut ret = String::new();
 
