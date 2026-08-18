@@ -14,7 +14,6 @@ pub fn start_shell() {
 ////////////////// local message passing from Ux Callback
 use num_traits::*;
 
-use crate::repl::HISTORY_DEPTH;
 
 #[derive(Debug, num_derive::FromPrimitive, num_derive::ToPrimitive)]
 enum ConsoleOp {
@@ -36,7 +35,6 @@ fn shell() {
     let mut repl = crate::repl::Repl::new(&xns);
     let mut update_repl = false;
     let mut was_callback = false;
-    let mut history_index: isize = 0;
 
     // register this late because the REPL can take a while to init as it depends on the PDDB.
     kbd.register_listener(SERVER_NAME_SHELLCHAT, ConsoleOp::Keypress.to_u32().unwrap() as usize);
@@ -51,36 +49,9 @@ fn shell() {
                 if k1 == 0x08 {
                     // backspace character
                     input.pop(); // returns None if empty
-                } else if k == '↑' || k == '↓' {
-                    // a partial attempt at history processing.
-                    if k == '↑' {
-                        history_index -= 1;
-                    } else if k == '↓' {
-                        history_index += 1;
-                    }
-                    if history_index > -1 {
-                        history_index = -1;
-                    }
-                    if history_index < -(HISTORY_DEPTH as isize) {
-                        history_index = -(HISTORY_DEPTH as isize);
-                    }
-                    let input_len = input.len();
-                    // line editing doesn't work because the "print" implementation waits until a newline
-                    // to send the buffer to reduce message traffic. I think it's reasonable to leave it
-                    // without line editing for now to preserve this trade-off.
-                    if false {
-                        // clear the old input
-                        let spaces: String = std::iter::repeat(' ').take(input_len).collect();
-                        print!("\r{}", spaces);
-                    }
-                    input.clear();
-                    if let Some(s) = repl.get_history(history_index) {
-                        input.push_str(s);
-                        // print the new input
-                        println!("{}", &input);
-                    }
                 } else if matches!(k, '\u{1f525}' | '\u{23f0}' | '\u{1f53c}' | '\u{1f53d}'
-                                    | '\u{2190}' | '\u{2192}' | '\u{2234}')
+                                    | '\u{23ef}' | '\u{2190}' | '\u{2192}' | '\u{2191}'
+                                    | '\u{2193}' | '\u{2234}')
                 {
                     // Badge controls, not typing. This listener receives the physical buttons
                     // as well as anything arriving over serial, so walking the badge's menus
@@ -95,8 +66,13 @@ fn shell() {
                     // above), so an arrow has nothing useful to do and only ever arrived as a
                     // literal character in the middle of a command.
                     //
-                    // Up and down are deliberately not in this list - they drive the history
-                    // scroll just above, and that is worth keeping for a terminal.
+                    // Up and down are here too. They used to run a half-built history recall:
+                    // the branch that clears the current line sat behind `if false`, so it
+                    // printed the recalled command on a new line and silently threw away
+                    // whatever had been typed. Rotating the jog wheel did that from across
+                    // the room. Real history needs line editing first, which needs the print
+                    // path to stop buffering until newline - Repl::get_history is still there
+                    // for whoever does that.
                 } else if k != '\u{0000}' && k != '\n' && k != '\r' {
                     input.push(k);
                     // Echo as it is typed. Output is buffered until a newline, so this needs
@@ -117,7 +93,6 @@ fn shell() {
                         repl.input(input.as_str()).expect("REPL crashed");
                         update_repl = true;
                         was_callback = false;
-                        history_index = 0;
                     }
                     input.clear();
                 }
