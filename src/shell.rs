@@ -6,30 +6,23 @@ use xous::msg_scalar_unpack;
 ///
 /// Generated from scam-splash.svg at its own 2px grid, so it is the same drawing the badge
 /// shows rather than a second version of it that can drift.
+///
+/// Drawn with half-block characters, two source rows per line. A terminal cell is about
+/// twice as tall as it is wide, so one character per pixel renders the mark stretched;
+/// pairing the rows this way keeps it roughly square and halves the height.
 const SCAM_BANNER: &[&str] = &[
-    "   ##             ##",
-    "  #  #           #  #",
-    " ##  #     #     #  ##",
-    "#    #    # #    #    #",
-    "#     #  #   #  #     #",
-    " ###    #     #    ###",
-    "    #  #   #   #  #",
-    "     # #   #   # #",
-    "       #   #   #    ###     #    #   #",
-    "       #   #   #   #   #   # #   #   #",
-    "        #   # #    #      #   #  ## ##",
-    "         #   #     #      #   #  # # #",
-    "        # #   #    #      #####  # # #",
-    "       #   #   #   #   #  #   #  #   #",
-    "       #   #   #    ###   #   #  #   #",
-    "     # #   #   # #",
-    "    #  #   #   #  #",
-    " ###    #     #    ###",
-    "#     #  #   #  #     #",
-    "#    #    # #    #    #",
-    " ##  #     #     #  ##",
-    "  #  #           #  #",
-    "   ##             ##",
+    "  ▄▀▀▄           ▄▀▀▄",
+    "▄▀▀  █    ▄▀▄    █  ▀▀▄",
+    "▀▄▄▄  ▀ ▄▀   ▀▄ ▀  ▄▄▄▀",
+    "    ▀▄ █   █   █ ▄▀",
+    "       █   █   █   ▄▀▀▀▄   ▄▀▄   █   █",
+    "        ▀▄  ▀▄▀    █      █   █  █▀▄▀█",
+    "       ▄▀ ▀▄  ▀▄   █   ▄  █▀▀▀█  █ ▀ █",
+    "     ▄ █   █   █ ▄  ▀▀▀   ▀   ▀  ▀   ▀",
+    " ▄▄▄▀  ▀▄  ▀  ▄▀  ▀▄▄▄",
+    "█    ▄▀  ▀▄ ▄▀  ▀▄    █",
+    " ▀█  █     ▀     █  █▀",
+    "   ▀▀             ▀▀",
 ];
 
 /// Print the mark and whatever commands are currently registered.
