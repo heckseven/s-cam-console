@@ -79,6 +79,24 @@ fn shell() {
                         // print the new input
                         println!("{}", &input);
                     }
+                } else if matches!(k, '\u{1f525}' | '\u{23f0}' | '\u{1f53c}' | '\u{1f53d}'
+                                    | '\u{2190}' | '\u{2192}' | '\u{2234}')
+                {
+                    // Badge controls, not typing. This listener receives the physical buttons
+                    // as well as anything arriving over serial, so walking the badge's menus
+                    // was pushing the middle button, the jog press and the arrows straight
+                    // into the command line and echoing them back.
+                    //
+                    // The first four can only come from the hardware - the centre button, the
+                    // RTC wakeup and the two orientation events. The last three are shared
+                    // with a terminal, which sends them as escape sequences that the keyboard
+                    // server translates to these same characters, but neither source wants
+                    // them inserted: there is no line editing here (see the history branch
+                    // above), so an arrow has nothing useful to do and only ever arrived as a
+                    // literal character in the middle of a command.
+                    //
+                    // Up and down are deliberately not in this list - they drive the history
+                    // scroll just above, and that is worth keeping for a terminal.
                 } else if k != '\u{0000}' && k != '\n' && k != '\r' {
                     input.push(k);
                     // Echo as it is typed. Output is buffered until a newline, so this needs
