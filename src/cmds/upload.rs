@@ -149,7 +149,17 @@ impl<'a> ShellCmdApi<'a> for Upload {
 
     fn process(&mut self, _args: String, _env: &mut CommonEnv) -> Result<Option<String>, xous::Error> {
         // Printed rather than returned: the reply path is one line and this is a file.
-        println!("{}", UPLOAD_SCRIPT);
+        //
+        // A line at a time, with a pause every so often. Printing the whole script in one
+        // call overran the serial buffer and the *beginning* was lost - the tail arrived
+        // looking like a complete file that started halfway through a function, which is a
+        // nasty thing to hand somebody as a script to run.
+        for (n, line) in UPLOAD_SCRIPT.lines().enumerate() {
+            println!("{}", line);
+            if n % 8 == 7 {
+                _env.ticktimer.sleep_ms(20).ok();
+            }
+        }
         let mut ret = String::new();
         write!(ret, "-- end of script --").unwrap();
         Ok(Some(ret))
