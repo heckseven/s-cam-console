@@ -23,7 +23,10 @@ fn main() {
     wdt.enable((50_000_000 / 2) * 20, true);
 
     log_server::init_wait().unwrap();
-    log::set_max_level(log::LevelFilter::Info);
+    // Warn, not Info. The log and the console REPL come out of the same CDC interface, so an
+    // INFO line lands in the middle of whatever is being typed. `debug log on` turns it back
+    // up for both this process and the vault when something is being diagnosed.
+    log::set_max_level(log::LevelFilter::Warn);
     log::info!("my PID is {}", xous::process::id());
     #[cfg(feature = "duart-debug-hal")]
     bao1x_hal::claim_duart();
