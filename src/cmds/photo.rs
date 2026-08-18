@@ -40,9 +40,10 @@ const OP_PHOTO_GET: usize = 1050;
 /// The dictionary the badge keeps camera photos in. Written directly rather than through the
 /// vault, because a photo is 2KB and that does not fit in a scalar message - and the PDDB is
 /// shared, so there is nothing to route around.
-const VAULT_PHOTOS_DICT: &str = "vault.photos";
-const PHOTO_BYTES: usize = 2048;
-const PHOTO_CAP: usize = 32;
+// Shared with the badge through dc34-api. These were local constants, and the cap had already
+// drifted away from the vault's - 32 here against 27 there - so an upload could push past the
+// limit the badge enforced on its own captures.
+use dc34_api::{PHOTO_BYTES, PHOTO_CAP, VAULT_PHOTOS_DICT};
 
 const CHUNK_DATA_SIZE: usize = 64;
 const CHUNK_INDEX_BYTES: usize = 2;
