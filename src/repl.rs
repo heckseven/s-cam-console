@@ -69,6 +69,20 @@ impl Repl {
         }
     }
 
+    /// The commands currently registered, as the dispatcher itself reports them.
+    ///
+    /// Asks with a verb that matches nothing, because that is what makes the dispatcher
+    /// enumerate what it has. Keeping a second list here would be one more thing to forget
+    /// to update when a command is added.
+    pub(crate) fn command_list(&mut self) -> String {
+        let mut probe = String::from("?");
+        self.env
+            .dispatch(Some(&mut probe), None)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| String::from("(no commands)"))
+    }
+
     /// update the loop, in response to various inputs
     pub(crate) fn update(&mut self, _was_callback: bool, _init_done: bool) -> Result<(), xous::Error> {
         // if we had an input string, do something

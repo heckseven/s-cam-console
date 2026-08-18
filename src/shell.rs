@@ -1,6 +1,51 @@
 use bao1x_api::*;
 use xous::msg_scalar_unpack;
 
+
+/// The S-CAM mark, as it appears on the badge's startup screen.
+///
+/// Generated from scam-splash.svg at its own 2px grid, so it is the same drawing the badge
+/// shows rather than a second version of it that can drift.
+const SCAM_BANNER: &[&str] = &[
+    "   ##             ##",
+    "  #  #           #  #",
+    " ##  #     #     #  ##",
+    "#    #    # #    #    #",
+    "#     #  #   #  #     #",
+    " ###    #     #    ###",
+    "    #  #   #   #  #",
+    "     # #   #   # #",
+    "       #   #   #    ###     #    #   #",
+    "       #   #   #   #   #   # #   #   #",
+    "        #   # #    #      #   #  ## ##",
+    "         #   #     #      #   #  # # #",
+    "        # #   #    #      #####  # # #",
+    "       #   #   #   #   #  #   #  #   #",
+    "       #   #   #    ###   #   #  #   #",
+    "     # #   #   # #",
+    "    #  #   #   #  #",
+    " ###    #     #    ###",
+    "#     #  #   #  #     #",
+    "#    #    # #    #    #",
+    " ##  #     #     #  ##",
+    "  #  #           #  #",
+    "   ##             ##",
+];
+
+/// Print the mark and whatever commands are currently registered.
+///
+/// The command list comes from the dispatcher rather than a list kept here: any verb that
+/// does not match makes it enumerate what it has, so adding a command updates this for free.
+fn print_banner(repl: &mut crate::repl::Repl) {
+    println!("");
+    for row in SCAM_BANNER {
+        println!("{}", row);
+    }
+    println!("");
+    println!("{}", repl.command_list());
+    println!("Type a command, or press Enter on an empty line to see this again.");
+}
+
 pub fn start_shell() {
     std::thread::spawn(move || {
         shell();
@@ -77,11 +122,24 @@ fn shell() {
                     }
                 } else if k != '\u{0000}' && k != '\n' && k != '\r' {
                     input.push(k);
+                    // Echo as it is typed. Output is buffered until a newline, so this needs
+                    // an explicit flush - without one you type blind until you press Enter.
+                    print!("{}", k);
+                    use std::io::Write;
+                    std::io::stdout().flush().ok();
                 } else if k == '\n' || k == '\r' {
-                    repl.input(input.as_str()).expect("REPL crashed");
-                    update_repl = true;
-                    was_callback = false;
-                    history_index = 0;
+                    println!("");
+                    if input.is_empty() {
+                        // Enter on an empty line reprints the mark and the commands. The
+                        // badge cannot tell when a terminal attaches, so there is no "on
+                        // connect" moment to hook - this is the gesture that stands in for it.
+                        print_banner(&mut repl);
+                    } else {
+                        repl.input(input.as_str()).expect("REPL crashed");
+                        update_repl = true;
+                        was_callback = false;
+                        history_index = 0;
+                    }
                     input.clear();
                 }
             }),
