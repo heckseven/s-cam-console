@@ -66,7 +66,33 @@ def open_port(path):
     return fd
 
 def talk(fd, line, wait=4.0):
-    os.write(fd, line.encode() + b"\r\n")
+    # Clear anything still arriving before speaking. Without this the badge is mid-reply
+    # when the next line starts, and the line is lost - the Enter still lands, which the
+    # shell reads as an empty line and answers with the help listing. A command that comes
+    # back as help has not been misunderstood, it has been thrown away.
+    _end = time.time() + 0.5
+    while time.time() < _end:
+        _r, _, _ = select.select([fd], [], [], 0.1)
+        if _r:
+            try:
+                os.read(fd, 4096)
+            except (BlockingIOError, OSError):
+                pass
+    # Feed it slowly. Serial input arrives at the badge as keystrokes, and that queue is
+    # about sixteen deep - sending a whole line at once overflows it and most of the line is
+    # dropped, which shows up as a CRC failure rather than anything mentioning speed.
+    data = line.encode() + b"\r\n"
+    for i in range(0, len(data), 4):
+        piece = data[i:i + 4]
+        sent = 0
+        while sent < len(piece):
+            _, w, _ = select.select([], [fd], [], 1.0)
+            if w:
+                try:
+                    sent += os.write(fd, piece[sent:])
+                except BlockingIOError:
+                    time.sleep(0.01)
+        time.sleep(0.04)
     got, end = b"", time.time() + wait
     while time.time() < end:
         r, _, _ = select.select([fd], [], [], 0.2)
@@ -123,9 +149,21 @@ def main():
     for n in range(CHUNKS):
         body = struct.pack(">H", n) + data[n * CHUNK:(n + 1) * CHUNK]
         wire = body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
-        reply = talk(fd, "photo put " + base64.b64encode(wire).decode())
-        if "ERR" in reply:
-            sys.exit(f"chunk {n} refused: {reply.strip()}")
+        # Retry a refused chunk rather than giving up. The badge checks a CRC on every
+        # chunk for exactly this reason: the console's input path is narrow and a character
+        # occasionally does not survive the trip.
+        line = "photo put " + base64.b64encode(wire).decode()
+        for attempt in range(6):
+            reply = talk(fd, line)
+            # Require a real acknowledgement. "no ERR" is not the same as "accepted": a
+            # dropped line leaves only the Enter, and the shell answers an empty line with
+            # its help listing - which contains no ERR and would otherwise read as success.
+            if "OK" in reply or "SUCCESS" in reply:
+                break
+            time.sleep(0.4)
+        else:
+            sys.exit(f"chunk {n} never acknowledged: {reply.strip()[-120:]}")
+        time.sleep(0.15)   # let the badge settle before the next line
         print(f"\r  {n + 1}/{CHUNKS}", end="", flush=True)
     print()
     print("done - the photo is now in the badge's photo list")
