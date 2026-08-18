@@ -13,10 +13,20 @@ use std::io::Read;
 
 use String;
 use pddb::Pddb;
+use xous_ipc::Buffer;
 
 use crate::{CommonEnv, ShellCmdApi};
 
 const BOOKMARKS_DICT: &str = "vault.bookmarks";
+/// dc34-vault's server, and VaultOp::SerialQrAdd. Pinned by an assert on the other side.
+const VAULT_SERVER: &str = "_Vault2_";
+const OP_QR_ADD: u32 = 1051;
+
+/// Mirrors dc34-vault's IpcString, which is what SerialQrAdd sends and receives.
+#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub struct IpcString {
+    pub s: String,
+}
 /// The vault keeps its key counter in the same dictionary; it is not a bookmark.
 const COUNTER_KEY: &str = "__counter__";
 
@@ -52,11 +62,12 @@ impl Qr {
 impl<'a> ShellCmdApi<'a> for Qr {
     cmd_api!(qr);
 
-    fn help(&self) -> &'static str { "list and read saved QR codes" }
+    fn help(&self) -> &'static str { "list, read and add saved QR codes" }
 
     fn usage(&self) -> &'static str {
         "qr list                every saved code, numbered\n    \
-         qr get <n>             the URL of code n on its own"
+         qr get <n>             the URL of code n on its own\n    \
+         qr add <url>           save a QR code from here"
     }
 
     fn process(&mut self, args: String, _env: &mut CommonEnv) -> Result<Option<String>, xous::Error> {
@@ -87,7 +98,33 @@ impl<'a> ShellCmdApi<'a> for Qr {
                     None => write!(ret, "ERR no code {}", index).unwrap(),
                 }
             }
-            _ => write!(ret, "qr [list | get <n>]").unwrap(),
+            Some("add") => {
+                let url = args.trim_start().trim_start_matches("add").trim();
+                if url.is_empty() {
+                    write!(ret, "ERR need a URL: qr add <url>").unwrap();
+                    return Ok(Some(ret));
+                }
+                // The vault owns the key counter and the URL validation, so it does the
+                // saving; this only carries the string across and reports what came back.
+                let conn = match _env.xns.request_connection_blocking(VAULT_SERVER) {
+                    Ok(c) => c,
+                    Err(_) => {
+                        write!(ret, "ERR vault not running").unwrap();
+                        return Ok(Some(ret));
+                    }
+                };
+                match Buffer::into_buf(IpcString { s: String::from(url) }) {
+                    Ok(mut buf) => match buf.lend_mut(conn, OP_QR_ADD) {
+                        Ok(_) => match buf.to_original::<IpcString, _>() {
+                            Ok(reply) => write!(ret, "{}", reply.s).unwrap(),
+                            Err(_) => write!(ret, "ERR no reply").unwrap(),
+                        },
+                        Err(e) => write!(ret, "ERR {:?}", e).unwrap(),
+                    },
+                    Err(e) => write!(ret, "ERR ipc {:?}", e).unwrap(),
+                }
+            }
+            _ => write!(ret, "qr [list | get <n> | add <url>]").unwrap(),
         }
         Ok(Some(ret))
     }

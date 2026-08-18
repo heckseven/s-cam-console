@@ -83,6 +83,8 @@ impl CommonEnv {
 // diagnostics.
 mod photo;
 use photo::*;
+mod upload;
+use upload::*;
 mod qr;
 use qr::*;
 mod debug;
@@ -98,6 +100,7 @@ pub struct CmdEnv {
     ///// 2. declare storage for your command here.
     photo: Photo,
     qr: Qr,
+    upload: Upload,
     debug: Debug,
     bio: BioLoader,
     test: Test,
@@ -119,6 +122,7 @@ impl CmdEnv {
             ///// 3. initialize your storage, by calling new()
             photo: Photo::new(),
             qr: Qr::new(),
+            upload: Upload::new(),
             debug: Debug::new(),
             bio: BioLoader::new(),
             test: Test::new(),
@@ -137,6 +141,7 @@ impl CmdEnv {
             // Everyday commands first, diagnostics last - this order is what help prints.
             &mut self.photo,
             &mut self.qr,
+            &mut self.upload,
             &mut self.debug,
             &mut self.bio,
             &mut self.test,
